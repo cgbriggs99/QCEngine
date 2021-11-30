@@ -11,7 +11,7 @@ import qcelemental as qcel
 from qcelemental.models import Molecule
 from qcelemental.molparse import regex
 
-from ..util import PreservingDict
+from ..util import PreservingDict, load_hessian
 
 pp = pprint.PrettyPrinter(width=120, compact=True, indent=1)
 logger = logging.getLogger(__name__)
@@ -24,6 +24,16 @@ def harvest(
     *gamessout* Scratch files are not yet considered at this moment.
     """
     qcvars, calc_mol, calc_grad, module = harvest_output(gamessout)
+
+    datasections = {}
+    if outfiles.get("gamess.dat"):
+        datasections = harvest_datfile(outfiles["gamess.dat"])
+
+    calc_hess = None
+    if "$HESS" in datasections:
+        calc_hess = load_hessian(datasections["$HESS"], dtype="gamess")
+        if np.count_nonzero(calc_hess) == 0:
+            calc_hess = None
 
     # Sometimes the hierarchical setting of CURRENT breaks down
     if method == "ccsd+t(ccsd)":
@@ -38,19 +48,48 @@ def harvest(
                     f"""GAMESS outfile (NRE: {calc_mol.nuclear_repulsion_energy()}) inconsistent with AtomicInput.molecule (NRE: {in_mol.nuclear_repulsion_energy()})."""
                 )
 
-        return_mol = calc_mol
-        amol, data = calc_mol.align(in_mol, atoms_map=False, mols_align=True, verbose=0)
-        mill = data["mill"]
+        # Frame considerations
+        # * `in_mol` built with deliberation and with all fields accessible.
+        # * `calc_mol` has the internally consistent geometry frame but otherwise dinky (geom & symbols & maybe chgmult).
+        if in_mol.fix_com and in_mol.fix_orientation:
+            # Impose input frame if important as signalled by fix_*=T
+            return_mol = in_mol
+            _, data = calc_mol.align(in_mol, atoms_map=False, mols_align=True, run_mirror=True, verbose=0)
+            mill = data["mill"]
+
+        else:
+            return_mol, _ = in_mol.align(calc_mol, atoms_map=False, mols_align=True, run_mirror=True, verbose=0)
+            mill = qcel.molutil.compute_scramble(
+                len(in_mol.symbols), do_resort=False, do_shift=False, do_rotate=False, do_mirror=False
+            )  # identity AlignmentMill
 
         return_grad = None
         if calc_grad is not None:
             return_grad = mill.align_gradient(calc_grad)
 
         return_hess = None
+        if calc_hess is not None:
+            return_hess = mill.align_hessian(np.array(calc_hess))
+
     else:
         raise ValueError("""No coordinate information extracted from gamess output.""")
 
     return qcvars, return_hess, return_grad, return_mol, module
+
+
+def harvest_datfile(datfile: str) -> Dict[str, str]:
+    sections = datfile.split(r"$END")
+    goodies = {}
+
+    for i, sec in enumerate(sections):
+        lsec = sec.split("\n")
+        for iln, ln in enumerate(lsec):
+            if ln.strip():
+                key = ln.strip()
+                break
+        goodies[key] = "\n".join(lsec[iln + 1 :])
+
+    return goodies
 
 
 def harvest_output(outtext):
@@ -124,7 +163,6 @@ def harvest_outfile_pass(outtext):
         )
         if mobj:
             logger.debug("matched calcinfo")
-            print("matched calcinfo", mobj.groups())
             qcvar["N ALPHA ELECTRONS"] = mobj.group("nao")
             qcvar["N BETA ELECTRONS"] = mobj.group("nbo")
 
@@ -137,9 +175,27 @@ def harvest_outfile_pass(outtext):
         )
         if mobj:
             logger.debug("matched calcinfo 2")
-            print("matched calcinfo 2", mobj.groups())
             qcvar["N MOLECULAR ORBITALS"] = mobj.group("nmo")
             qcvar["N BASIS FUNCTIONS"] = mobj.group("nmo")  # TODO BAD
+        else:
+            mobj2 = re.search(
+                # fmt: off
+                r"^\s+" + r"NUMBER OF CORE -A-  ORBITALS" + r"\s+=\s+" + r"(?P<core_nao>\d+)" + r"\s*" +
+                r"^\s+" + r"NUMBER OF CORE -B-  ORBITALS" + r"\s+=\s+" + r"(?P<core_nbo>\d+)" + r"\s*" +
+                r"^\s+" + r"NUMBER OF OCC. -A-  ORBITALS" + r"\s+=\s+" + r"(?P<occ_nao>\d+)" + r"\s*" +
+                r"^\s+" + r"NUMBER OF OCC. -B-  ORBITALS" + r"\s+=\s+" + r"(?P<occ_nbo>\d+)" + r"\s*" +
+                r"^\s+" + r"NUMBER OF MOLECULAR ORBITALS" + r"\s+=\s+" + r"(?P<nmo>\d+)" + r"\s*" +
+                r"^\s+" + r"NUMBER OF   BASIS  FUNCTIONS" + r"\s+=\s+" + r"(?P<nbf>\d+)" + r"\s*",
+                # fmt: on
+                outtext,
+                re.MULTILINE,
+            )
+            if mobj2:
+                logger.debug("matched calcinfo 3")
+                qcvar["N ALPHA ELECTRONS"] = mobj2.group("occ_nao")
+                qcvar["N BETA ELECTRONS"] = mobj2.group("occ_nbo")
+                qcvar["N MOLECULAR ORBITALS"] = mobj2.group("nmo")
+                qcvar["N BASIS FUNCTIONS"] = mobj2.group("nbf")
 
         # Process MP2
         mobj = re.search(
@@ -157,6 +213,7 @@ def harvest_outfile_pass(outtext):
             re.MULTILINE,
         )
         if mobj:
+            logger.debug("matched mp2 module")
             module = mobj.group("code").lower()
 
         mobj = re.search(
@@ -172,7 +229,6 @@ def harvest_outfile_pass(outtext):
         )
         if mobj:
             logger.debug("matched mp2 a")
-            print("matched mp2 a", mobj.groups())
             qcvar["MP2 CORRELATION ENERGY"] = mobj.group(3)
             qcvar["MP2 TOTAL ENERGY"] = mobj.group(4)
             mobj3 = re.search(r"\s+[RU]HF\s*SCF\s*CALCULATION", outtext, re.MULTILINE)
@@ -192,7 +248,6 @@ def harvest_outfile_pass(outtext):
         )
         if mobj:
             logger.debug("matched mp2 b")
-            print("matched mp2 b")
             qcvar["MP2 CORRELATION ENERGY"] = mobj.group(2)
             qcvar["MP2 TOTAL ENERGY"] = mobj.group(3)
 
@@ -213,7 +268,6 @@ def harvest_outfile_pass(outtext):
         )
         if mobj:
             logger.debug("matched mp2 rhf c")
-            print("matched mp2 c", mobj.groups())
             qcvar["HF TOTAL ENERGY"] = mobj.group(1)
             qcvar["MP2 SINGLES ENERGY"] = mobj.group(2)
             qcvar["MP2 DOUBLES ENERGY"] = mobj.group(3)
@@ -236,14 +290,12 @@ def harvest_outfile_pass(outtext):
         )
         if mobj:
             logger.debug("matched mp2 rohf d")
-            print("matched mp2 rohf d", mobj.groups())
             qcvar["MP2 SINGLES ENERGY"] = Decimal(mobj.group(1)) + Decimal(mobj.group(2))
             qcvar["MP2 DOUBLES ENERGY"] = mobj.group(3)
 
         mobj = re.search(r"^\s+" + "UHF-MP2 CALCULATION", outtext, re.MULTILINE)
         if mobj:
             logger.debug("matched mp2 uhf e")
-            print("matched mp2 uhf e")
             qcvar["MP2 SINGLES ENERGY"] = "0.0"
 
         mobj = re.search(
@@ -257,7 +309,6 @@ def harvest_outfile_pass(outtext):
         )
         if mobj:
             logger.debug("matched mp2 rohf f")
-            print("matched mp2 rohf f", mobj.groups())
             qcvar["HF TOTAL ENERGY"] = mobj.group(1)
             qcvar["MP2 CORRELATION ENERGY"] = mobj.group(2)
             qcvar["MP2 TOTAL ENERGY"] = mobj.group(3)
@@ -408,7 +459,6 @@ def harvest_outfile_pass(outtext):
         )
         if mobj:
             logger.debug("matched cisd fsoci/guga", mobj.groupdict())
-            print("matched cisd fsoci/guga", mobj.groupdict())
             module = mobj.group("module").lower()
             qcvar["CISD CORRELATION ENERGY"] = Decimal(mobj.group("ci")) - Decimal(mobj.group("hf"))
             qcvar["CISD TOTAL ENERGY"] = mobj.group("ci")
@@ -483,7 +533,12 @@ def harvest_outfile_pass(outtext):
             molxyz = "%d bohr\n\n" % len(mobj.group(1).splitlines())
             for line in mobj.group(1).splitlines():
                 lline = line.split()
-                molxyz += "%s %16s %16s %16s\n" % (int(float(lline[-4])), lline[-3], lline[-2], lline[-1])
+                chg_on_center = int(float(lline[-4]))
+                if chg_on_center > 0:
+                    tag = f"{lline[-5]}"
+                else:
+                    tag = f"@{lline[-5].strip()}"
+                molxyz += "%s %16s %16s %16s\n" % (tag, lline[-3], lline[-2], lline[-1])
             qcvar_coord = Molecule(
                 validate=False,
                 **qcel.molparse.to_schema(

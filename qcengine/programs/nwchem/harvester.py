@@ -307,11 +307,12 @@ def harvest_outfile_pass(outtext):
             # TCE dipole- MBPT(n)
             mobj2 = re.search(
                 # fmt: off
-                r'^\s+' +  r'dipole moments / hartree & Debye' + r'\s*' +
-                r'^\s+' + r'X' + r'\s+' + NUMBER + r'\s+' + NUMBER + r'\s*' +
-                r'^\s+' + r'Y' + r'\s+' + NUMBER + r'\s+' + NUMBER + r'\s*' +
-                r'^\s+' + r'Z' + r'\s+' + NUMBER + r'\s+' + NUMBER + r'\s*' +
-                r'^\s+' + r'Total' + r'\s+' + NUMBER + r'\s+' + NUMBER + r'\s*$',
+                r"^\s*" + cc_name + r"\s+" + r"dipole moments \/ hartree & Debye" + r"\s*" +
+                r"^\s*" + r"-+" + r"\s*" +
+                r'^\s*' + r'X' + r'\s+' + NUMBER + r'\s+' + NUMBER + r'\s*' +
+                r'^\s*' + r'Y' + r'\s+' + NUMBER + r'\s+' + NUMBER + r'\s*' +
+                r'^\s*' + r'Z' + r'\s+' + NUMBER + r'\s+' + NUMBER + r'\s*' +
+                r'^\s*' + r'Total' + r'\s+' + NUMBER + r'\s+' + NUMBER + r'\s*$',
                 # fmt: on
                 outtext,
                 re.MULTILINE,
@@ -321,7 +322,8 @@ def harvest_outfile_pass(outtext):
                 mbpt_plain = cc_name.replace("\\", "").replace("MBPT", "MP").replace("(", "").replace(")", "")
                 logger.debug(f"matched tce {mbpt_plain} dipole moment")
                 # only pulling Debye
-                psivar[f"{mbpt_plain} DIPOLE"] = np.array([mobj2.group(1), mobj2.group(3), mobj2.group(5)])
+                dipole = np.array([float(mobj2.group(2)), float(mobj2.group(4)), float(mobj2.group(6))])
+                psivar[f"{mbpt_plain} DIPOLE"] = dipole
 
         # TCE with () or []
         for cc_name in [
@@ -347,7 +349,7 @@ def harvest_outfile_pass(outtext):
             )
             if mobj:
                 cc_plain = cc_name.replace("\\", "")
-                cc_corr = cc_plain.replace("CCSD", "")
+                cc_plain.replace("CCSD", "")
                 logger.debug(f"matched tce cc {cc_plain}")
 
                 if cc_plain == "CCSD[T]":
@@ -362,11 +364,12 @@ def harvest_outfile_pass(outtext):
             # TCE dipole with () or []
             mobj2 = re.search(
                 # fmt: off
-                r'^\s+' + cc_name + r'dipole moments / hartree & Debye' + r'\s*' +
-                r'^\s+' + r'X' + r'\s+' + NUMBER + r'\s+' + NUMBER + r'\s*' +
-                r'^\s+' + r'Y' + r'\s+' + NUMBER + r'\s+' + NUMBER + r'\s*' +
-                r'^\s+' + r'Z' + r'\s+' + NUMBER + r'\s+' + NUMBER + r'\s*' +
-                r'^\s+' + r'Total' + r'\s+' + NUMBER + r'\s+' + NUMBER + r'\s*$',
+                r"^\s*" + cc_name + r"\s+" + r"dipole moments \/ hartree & Debye" + r"\s*" +
+                r"^\s*" + r"-+" + r"\s*" +
+                r'^\s*' + r'X' + r'\s+' + NUMBER + r'\s+' + NUMBER + r'\s*' +
+                r'^\s*' + r'Y' + r'\s+' + NUMBER + r'\s+' + NUMBER + r'\s*' +
+                r'^\s*' + r'Z' + r'\s+' + NUMBER + r'\s+' + NUMBER + r'\s*' +
+                r'^\s*' + r'Total' + r'\s+' + NUMBER + r'\s+' + NUMBER + r'\s*$',
                 # fmt: on
                 outtext,
                 re.MULTILINE,
@@ -374,11 +377,12 @@ def harvest_outfile_pass(outtext):
 
             if mobj2:
                 cc_plain = cc_name.replace("\\", "")
-                cc_corr = cc_plain.replace("CCSD", "")
+                cc_plain.replace("CCSD", "")
                 logger.debug(f"matched tce {cc_plain} dipole moment")
 
                 # only pulling Debye
-                psivar[f"{cc_plain} DIPOLE"] = np.array([mobj2.group(1), mobj2.group(3), mobj2.group(5)])
+                dipole = np.array([float(mobj2.group(2)), float(mobj2.group(4)), float(mobj2.group(6))])
+                psivar[f"{cc_plain} DIPOLE"] = dipole
 
         # Process other TCE cases
         for cc_name in [
@@ -411,7 +415,8 @@ def harvest_outfile_pass(outtext):
                 if mobj3:
                     pass
                 else:
-                    psivar[f"{cc_name} DOUBLES ENERGY"] = mobj.group(1)
+                    if cc_name in ["MP2", "MP3", "LCCD", "LCCSD", "CCD", "CCSD"]:
+                        psivar[f"{cc_name} DOUBLES ENERGY"] = mobj.group(1)
                 psivar[f"{cc_name} CORRELATION ENERGY"] = mobj.group(1)
                 psivar[f"{cc_name} TOTAL ENERGY"] = mobj.group(2)
                 module = "tce"
@@ -419,11 +424,12 @@ def harvest_outfile_pass(outtext):
             # TCE dipole
             mobj2 = re.search(
                 # fmt: off
-                r'^\s+' + r'dipole moments / hartree & Debye' + r'\s*' +
-                r'^\s+' + r'X' + r'\s+' + NUMBER + r'\s+' + NUMBER + r'\s*' +
-                r'^\s+' + r'Y' + r'\s+' + NUMBER + r'\s+' + NUMBER + r'\s*' +
-                r'^\s+' + r'Z' + r'\s+' + NUMBER + r'\s+' + NUMBER + r'\s*' +
-                r'^\s+' + r'Total' + r'\s+' + NUMBER + r'\s+' + NUMBER + r'\s*$',
+                r"^\s*" + cc_name + r"\s+" + r"dipole moments \/ hartree & Debye" + r"\s*" +
+                r"^\s*" + r"-+" + r"\s*" +
+                r'^\s*' + r'X' + r'\s+' + NUMBER + r'\s+' + NUMBER + r'\s*' +
+                r'^\s*' + r'Y' + r'\s+' + NUMBER + r'\s+' + NUMBER + r'\s*' +
+                r'^\s*' + r'Z' + r'\s+' + NUMBER + r'\s+' + NUMBER + r'\s*' +
+                r'^\s*' + r'Total' + r'\s+' + NUMBER + r'\s+' + NUMBER + r'\s*$',
                 # fmt: on
                 outtext,
                 re.MULTILINE,
@@ -432,7 +438,9 @@ def harvest_outfile_pass(outtext):
                 logger.debug(f"matched tce dipole moment")
 
                 # only pulling Debye
-                psivar[f"CURRENT DIPOLE"] = np.array([mobj2.group(1), mobj2.group(3), mobj2.group(5)])
+                dipole = np.array([float(mobj2.group(2)), float(mobj2.group(4)), float(mobj2.group(6))])
+                psivar[f"{cc_name} DIPOLE"] = dipole
+                psivar[f"CURRENT DIPOLE"] = dipole
 
         # Process CCSD/CCSD(T) using nwchem CCSD/CCSD(T) [dertype] command
 
@@ -816,7 +824,7 @@ def harvest_outfile_pass(outtext):
             r'^\s' + r'Output coordinates in ' + r'(.*?)' + r'\s' + r'\(scale by' + r'.*' + r'\s' + r'to convert to a\.u\.\)' + r'\s+' + r'\n' +
             r'^\s+' + r'No\.\       Tag          Charge          X              Y              Z' + r'\s*' +
             r'^\s+' + r'---- ---------------- ---------- -------------- -------------- --------------' + r'\s*' +
-            r'((?:\s+([1-9][0-9]*)+\s+([A-Z][a-z]*)+\s+\d+\.\d+\s+[-+]?\d+\.\d+\s+[-+]?\d+\.\d+\s+[-+]?\d+\.\d+\s*\n)+)' + r'\s*$',
+            r'((?:\s+([1-9][0-9]*)+\s+(bq)?([A-Z]{1,3})((_\w+)|(\d+))?\s+\d+\.\d+\s+[-+]?\d+\.\d+\s+[-+]?\d+\.\d+\s+[-+]?\d+\.\d+\s*\n)+)' + r'\s*$',
             # fmt: on
             outtext,
             re.MULTILINE | re.IGNORECASE,
@@ -845,7 +853,15 @@ def harvest_outfile_pass(outtext):
                 molxyz = "%d au\n%d %d tag\n" % (len(mobj.group(2).splitlines()), out_charge, out_mult)
                 for line in mobj.group(2).splitlines():
                     lline = line.split()
-                    molxyz += "%s %16s %16s %16s\n" % (int(float(lline[-4])), lline[-3], lline[-2], lline[-1])
+                    chg_on_center = int(float(lline[-4]))
+                    if chg_on_center > 0:
+                        tag = f"{lline[-5]}"
+                    else:
+                        tag = lline[-5].strip()
+                        if tag.startswith("bq"):
+                            tag = tag[2:]
+                        tag = f"@{tag}"
+                    molxyz += "%s %16s %16s %16s\n" % (tag, lline[-3], lline[-2], lline[-1])
                     # Tag    ,    X,        Y,        Z
                 psivar_coord = Molecule(
                     validate=False,
@@ -861,7 +877,7 @@ def harvest_outfile_pass(outtext):
             r'^\s+' + r'.*' + r'ENERGY GRADIENTS' + r'\s*' + r'\s+' + r'\n' +
             r'^\s+' + r'atom               coordinates                        gradient' + r'\s*' +
             r'^\s+' + r'x          y          z           x          y          z' + r'\s*' +
-            r'((?:\s+([1-9][0-9]*)+\s+([A-Z][a-x]*)+\s+[-+]?\d+\.\d+\s+[-+]?\d+\.\d+\s+[-+]?\d+\.\d+\s+[-+]?\d+\.\d+\s+[-+]?\d+\.\d+\s+[-+]?\d+\.\d+\s*\n)+)' + r'\s*$',
+            r'((?:\s+([1-9][0-9]*)+\s+([A-Z][a-x]*)(\d+)?\s+[-+]?\d+\.\d+\s+[-+]?\d+\.\d+\s+[-+]?\d+\.\d+\s+[-+]?\d+\.\d+\s+[-+]?\d+\.\d+\s+[-+]?\d+\.\d+\s*\n)+)' + r'\s*$',
             # fmt: on
             outtext,
             re.MULTILINE,
@@ -1178,12 +1194,23 @@ def harvest(
     else:
         raise ValueError("""No coordinate information extracted from NWChem output.""")
 
-    # If present, align the gradients and hessian with the original molecular coordinates
-    #  NWChem rotates the coordinates of the input molecule. `calc_mol` contains the coordinates for the
-    #  rotated molecule, which we can use to determine how to rotate the gradients/hessian
-    return_mol = calc_mol
-    amol, data = calc_mol.align(in_mol, atoms_map=True, verbose=0, mols_align=0.01)
-    mill = data["mill"]  # Retrieve tool with alignment routines
+    # Frame considerations
+    # * `in_mol` built with deliberation and with all fields accessible.
+    # * `calc_mol` has the internally consistent geometry frame but otherwise dinky (geom & symbols & maybe chgmult).
+    if in_mol.fix_com and in_mol.fix_orientation:
+        # Impose input frame if important as signalled by fix_*=T
+        # If present, align the gradients and hessian with the original molecular coordinates
+        #  NWChem rotates the coordinates of the input molecule. `calc_mol` contains the coordinates for the
+        #  rotated molecule, which we can use to determine how to rotate the gradients/hessian
+        return_mol = in_mol
+        _, data = calc_mol.align(in_mol, atoms_map=True, verbose=0, mols_align=0.01)
+        mill = data["mill"]
+
+    else:
+        return_mol, _ = in_mol.align(calc_mol, atoms_map=True, verbose=0, mols_align=0.01)
+        mill = qcel.molutil.compute_scramble(
+            len(in_mol.symbols), do_resort=False, do_shift=False, do_rotate=False, do_mirror=False
+        )  # identity AlignmentMill
 
     return_grad = None
     if calc_grad is not None:

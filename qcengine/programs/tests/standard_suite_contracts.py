@@ -160,9 +160,13 @@ def contractual_mp2(
             (
                 (
                     (qc_module == "cfour" and reference == "rohf" and method == "mp2" and driver == "hessian")
-                    or (qc_module == "gamess" and reference in ["uhf", "rohf"] and method == "mp2")
                     or (
-                        qc_module == "gamess"
+                        qc_module in ["gamess-serial", "gamess-ddi"]
+                        and reference in ["uhf", "rohf"]
+                        and method == "mp2"
+                    )
+                    or (
+                        qc_module in ["gamess-serial", "gamess-ims"]
                         and reference == "rhf"
                         and method == "mp2"
                         and driver in ["gradient", "hessian"]
@@ -174,7 +178,9 @@ def contractual_mp2(
                     )
                     or (qc_module == "nwchem-tce" and method in ["mp2", "mp3", "mp4"])
                     or (
-                        qc_module == "nwchem" and reference in ["rhf"] and method in ["ccsd", "ccsd+t(ccsd)", "ccsd(t)"]
+                        qc_module == "nwchem-cc"
+                        and reference in ["rhf"]
+                        and method in ["ccsd", "ccsd+t(ccsd)", "ccsd(t)"]
                     )
                     or (qc_module == "nwchem-directmp2" and reference == "rhf" and method == "mp2")
                     or (
@@ -478,6 +484,31 @@ def contractual_qcisd_prt_pr(
     elif driver == "hessian" and method == "qcisd(t)":
         # contractual_qcvars.append("QCISD(T) TOTAL GRADIENT")
         contractual_qcvars.append("QCISD(T) TOTAL HESSIAN")
+
+    for pv in contractual_qcvars:
+        expected = True
+
+        yield (pv, pv, expected)
+
+
+def contractual_fci(
+    qc_module: str, driver: str, reference: str, method: str, corl_type: str, fcae: str
+) -> Tuple[str, str, bool]:
+    f"""Of the list of QCVariables an ideal FCI should produce, returns whether or
+    not each is expected, given the calculation circumstances (like QC program).
+
+    {_contractual_docstring}
+    """
+    contractual_qcvars = [
+        "HF TOTAL ENERGY",
+        "FCI CORRELATION ENERGY",
+        "FCI TOTAL ENERGY",
+    ]
+    if driver == "gradient" and method == "fci":
+        contractual_qcvars.append("FCI TOTAL GRADIENT")
+    elif driver == "hessian" and method == "fci":
+        # contractual_qcvars.append("FCI TOTAL GRADIENT")
+        contractual_qcvars.append("FCI TOTAL HESSIAN")
 
     for pv in contractual_qcvars:
         expected = True

@@ -12,7 +12,6 @@ std_molecules = {
     "hf": """
                 H
                 F 1 0.917
-symmetry c1  # TODO for nwchem, manage another way
               """,
     # "bh3p": """
     #            1 2
@@ -63,7 +62,6 @@ symmetry c1  # TODO for nwchem, manage another way
     "hf-xyz": """
         H    0.          0.         -1.64558411
         F    0.          0.          0.08729475
-        symmetry c1
         units bohr
                """,
 }
@@ -340,6 +338,7 @@ _std_suite = [
             "CISD CORRELATION ENERGY": -0.20226573645347,  # vcc
             "QCISD CORRELATION ENERGY": -0.20892771089382,  # vcc
             "QCISD(T) CORRECTION ENERGY": -0.00182210,  # vcc
+            "FCI CORRELATION ENERGY": -0.21117389325,  # detci
             "LCCD CORRELATION ENERGY": -0.2099060277,  # p4n
             "LCCD SINGLES ENERGY": 0.0,
             "LCCD SAME-SPIN CORRELATION ENERGY": -0.048339903547,  # fnocc
@@ -4200,6 +4199,7 @@ _std_suite = [
             "CISD CORRELATION ENERGY": -0.20039201434963,  # vcc
             "QCISD CORRELATION ENERGY": -0.20699674383631,  # vcc
             "QCISD(T) CORRECTION ENERGY": -0.00180789,  # vcc
+            "FCI CORRELATION ENERGY": -0.2092292951,  # detci
             "LCCD CORRELATION ENERGY": -0.2079585027,  # p4n
             "LCCD SINGLES ENERGY": 0.0,
             "LCCD SAME-SPIN CORRELATION ENERGY": -0.047635656759,  # fnocc
@@ -10293,6 +10293,9 @@ for calc in _std_suite:
                 calc["data"]["QCISD(T) TOTAL ENERGY"] = (
                     calc["data"]["QCISD(T) CORRELATION ENERGY"] + calc["data"]["HF TOTAL ENERGY"]
                 )
+
+        if "FCI CORRELATION ENERGY" in calc["data"]:
+            calc["data"]["FCI TOTAL ENERGY"] = calc["data"]["FCI CORRELATION ENERGY"] + calc["data"]["HF TOTAL ENERGY"]
 
         if "LCCD CORRELATION ENERGY" in calc["data"]:
             calc["data"]["LCCD TOTAL ENERGY"] = (
